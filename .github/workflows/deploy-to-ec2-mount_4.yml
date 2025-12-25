@@ -81,8 +81,6 @@ jobs:
             
           echo "Deployment completed."
 
-      - name: Warning if secrets are missing
-        if: ${{ success() && secrets.MOUNT_TARGET_DIR == '' }}
-        run: |
-          echo "::warning::Skipped deployment because required secret is missing (MOUNT_TARGET_DIR)."
+
+
 
