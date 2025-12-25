@@ -22,10 +22,7 @@ on:
 jobs:
   deploy:
     # Self-Hosted ランナーを指定（タグは環境に合わせて調整してください）
-    runs-on: [self-hosted, linux]
-
-    # テンプレートリポジトリ（名前に 'template' を含む）では実行しない
-    if: !contains(github.event.repository.name , 'template')
+    runs-on: self-hosted
 
     steps:
       - name: Checkout repository (main)
@@ -88,3 +85,4 @@ jobs:
         if: ${{ success() && secrets.MOUNT_TARGET_DIR == '' }}
         run: |
           echo "::warning::Skipped deployment because required secret is missing (MOUNT_TARGET_DIR)."
+
