@@ -30,6 +30,9 @@ jobs:
     # テンプレートリポジトリ（名前に 'template' を含む）では実行しない
     if: ${{ !contains(github.event.repository.name , 'template') }}
 
+    env:
+      MOUNT_TARGET_DIR: ${{ secrets.MOUNT_TARGET_DIR }}
+
     steps:
       - name: Checkout repository (main)
         uses: actions/checkout@v4
@@ -38,10 +41,8 @@ jobs:
 
       - name: Prepare and Copy to Mount Point
         env:
-          # ランナー上の絶対パス（例: /mnt/efs/deploy_target）
-          TARGET_DIR: ${{ secrets.MOUNT_TARGET_DIR }}
           TZ: "Asia/Tokyo" # タイムゾーンを東京に設定
-        if: env.TARGET_DIR != ''
+        if: env.MOUNT_TARGET_DIR != ''
         run: |
           # 日時付きディレクトリ名の生成 (例: Deploy_20251223153000123)
           TIMESTAMP=$(date +'%Y%m%d%H%M%S%3N')
@@ -71,11 +72,11 @@ jobs:
           ls -R "$DEPLOY_DIR"
           echo "----------------------------------------"
 
-          echo "Starting Local Copy to $TARGET_DIR..."
+          echo "Starting Local Copy to $MOUNT_TARGET_DIR..."
 
           # マウントポイントの存在確認
-          if [ ! -d "$TARGET_DIR" ]; then
-            echo "Error: Target directory '$TARGET_DIR' does not exist or is not mounted."
+          if [ ! -d "$MOUNT_TARGET_DIR" ]; then
+            echo "Error: Target directory '$MOUNT_TARGET_DIR' does not exist or is not mounted."
             exit 1
           fi
 
@@ -83,11 +84,11 @@ jobs:
           # -a: アーカイブモード（権限維持）
           # -v: 詳細表示
           # SSHオプション (-e) は指定しない
-          rsync -av "$DEPLOY_DIR" "$TARGET_DIR/"
+          rsync -av "$DEPLOY_DIR" "$MOUNT_TARGET_DIR/"
             
           echo "Deployment completed."
 
       - name: Warning if secrets are missing
-        if: ${{ success() && secrets.MOUNT_TARGET_DIR == '' }}
+        if: success() && env.MOUNT_TARGET_DIR == ''
         run: |
           echo "::warning::Skipped deployment because required secret is missing (MOUNT_TARGET_DIR)."
