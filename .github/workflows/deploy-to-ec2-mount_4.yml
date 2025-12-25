@@ -1,0 +1,90 @@
+# ================================================
+#  機能概要
+# -----------------------------------------------
+#  このワークフローは、Self-Hosted ランナーを使用し、
+#  マウントされたファイルシステム（EFS等）経由でファイルをデプロイします。
+#
+#  主な機能：
+#  - 東京時間の日時（ミリ秒まで）を含むフォルダを作成（例: Deploy_20251223123059123）
+#  - 作成したフォルダに .github と .githooks フォルダをコピー
+#  - ローカルファイルコピー（cp/rsync）を使用して、マウント先へ配置
+#  - ネットワーク転送（SSH/S3）を行わず、ディスクI/Oのみで完結
+#  - 必要な Secrets: MOUNT_TARGET_DIR (ランナーから見たマウントパス)
+# ================================================
+
+name: Deploy Files via Mount (Self-Hosted)
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    # Self-Hosted ランナーを指定（タグは環境に合わせて調整してください）
+    runs-on: [self-hosted, linux]
+
+    # テンプレートリポジトリ（名前に 'template' を含む）では実行しない
+    if: !contains(github.event.repository.name , 'template')
+
+    steps:
+      - name: Checkout repository (main)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Prepare and Copy to Mount Point
+        env:
+          # ランナー上の絶対パス（例: /mnt/efs/deploy_target）
+          TARGET_DIR: '/mnt/studies2/JWTest'
+          TZ: "Asia/Tokyo" # タイムゾーンを東京に設定
+        if: env.TARGET_DIR != ''
+        run: |
+          # 日時付きディレクトリ名の生成 (例: Deploy_20251223153000123)
+          TIMESTAMP=$(date +'%Y%m%d%H%M%S%3N')
+          DEPLOY_DIR="Deploy_$TIMESTAMP"
+
+          echo "Creating deployment directory: $DEPLOY_DIR"
+          mkdir -p "$DEPLOY_DIR"
+
+          # .github フォルダのコピー
+          if [ -d ".github" ]; then
+            echo "Copying .github..."
+            cp -r .github "$DEPLOY_DIR/"
+          else
+            echo "Warning: .github folder not found."
+          fi
+
+          # .githooks フォルダのコピー（存在する場合のみ）
+          if [ -d ".githooks" ]; then
+            echo "Copying .githooks..."
+            cp -r .githooks "$DEPLOY_DIR/"
+          else
+            echo "Info: .githooks folder not found, skipping."
+          fi
+
+          echo "----------------------------------------"
+          echo "Content of $DEPLOY_DIR:"
+          ls -R "$DEPLOY_DIR"
+          echo "----------------------------------------"
+
+          echo "Starting Local Copy to $TARGET_DIR..."
+
+          # マウントポイントの存在確認
+          if [ ! -d "$TARGET_DIR" ]; then
+            echo "Error: Target directory '$TARGET_DIR' does not exist or is not mounted."
+            exit 1
+          fi
+
+          # rsync をローカルモードで使用してコピー
+          # -a: アーカイブモード（権限維持）
+          # -v: 詳細表示
+          # SSHオプション (-e) は指定しない
+          rsync -av "$DEPLOY_DIR" "$TARGET_DIR/"
+            
+          echo "Deployment completed."
+
+      - name: Warning if secrets are missing
+        if: ${{ success() && secrets.MOUNT_TARGET_DIR == '' }}
+        run: |
+          echo "::warning::Skipped deployment because required secret is missing (MOUNT_TARGET_DIR)."
