@@ -14,6 +14,9 @@
 
 name: Deploy Files via Mount (Self-Hosted)
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch: {}
   push:
@@ -22,7 +25,10 @@ on:
 jobs:
   deploy:
     # Self-Hosted ランナーを指定（タグは環境に合わせて調整してください）
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux]
+
+    # テンプレートリポジトリ（名前に 'template' を含む）では実行しない
+    if: ${{ !contains(github.event.repository.name , 'template') }}
 
     steps:
       - name: Checkout repository (main)
@@ -33,7 +39,7 @@ jobs:
       - name: Prepare and Copy to Mount Point
         env:
           # ランナー上の絶対パス（例: /mnt/efs/deploy_target）
-          TARGET_DIR: '/mnt/studies2/JWTest'
+          TARGET_DIR: ${{ secrets.MOUNT_TARGET_DIR }}
           TZ: "Asia/Tokyo" # タイムゾーンを東京に設定
         if: env.TARGET_DIR != ''
         run: |
@@ -81,6 +87,7 @@ jobs:
             
           echo "Deployment completed."
 
-
-
-
+      - name: Warning if secrets are missing
+        if: ${{ success() && secrets.MOUNT_TARGET_DIR == '' }}
+        run: |
+          echo "::warning::Skipped deployment because required secret is missing (MOUNT_TARGET_DIR)."
