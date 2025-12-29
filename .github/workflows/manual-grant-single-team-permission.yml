@@ -11,7 +11,7 @@
 #  - テンプレートリポジトリ（名前に 'template' を含む）では実行しない
 # ================================================
 
-name: Auto Grant Single Team Permission (or Manual)
+name: Manual Grant Single Team Permission
 
 permissions:
   contents: read
